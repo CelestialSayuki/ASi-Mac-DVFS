@@ -13,11 +13,14 @@ def get_powermetrics_data():
         process = subprocess.Popen(['sudo', 'powermetrics', '--samplers', 'cpu_power,gpu_power,ane_power', '-i', '1', '-n', '1'],
                                  stdout=subprocess.PIPE,
                                  stderr=subprocess.PIPE)
-        stdout, stderr = process.communicate(timeout=10)
+        stdout, stderr = process.communicate(timeout=15)
         if process.returncode == 0:
             return stdout.decode('utf-8')
     except FileNotFoundError:
         log("错误: 本程序为macOS设计，无法在其他系统上运行")
+        return None
+    except subprocess.TimeoutExpired:
+        log("错误: powermetrics 命令执行超时。请确保您已正确输入 sudo 密码。")
         return None
 
 def parse_powermetrics_frequencies(output):
@@ -70,7 +73,7 @@ def parse_socpowerbud_voltages(output_buffer):
     return voltages
 
 if __name__ == "__main__":
-    print("自动电压检测工具V0.0.7 By Celestial紗雪")
+    print("自动电压检测工具V0.0.8 By Celestial紗雪")
     powermetrics_output = get_powermetrics_data()
     if powermetrics_output:
         frequencies = parse_powermetrics_frequencies(powermetrics_output)
@@ -107,9 +110,9 @@ if __name__ == "__main__":
                 line = socpowerbud_process.stdout.readline()
                 current_buffer += line
 
-                if re.match(r"0-Core PCPU$", line): # 精确匹配不带数字的 PCPU 行
+                if re.match(r"\d+-Core PCPU$", line): # 精确匹配不带数字的 PCPU 行
                     # 当检测到新的 PCPU 循环开始时，尝试解析之前的数据
-                    if "Integrated Graphics" in current_buffer and "0-Core ECPU" in current_buffer:
+                    if "Integrated Graphics" in current_buffer and re.search(r"\d+-Core ECPU", current_buffer):
                         voltages = parse_socpowerbud_voltages(current_buffer)
 
                         if voltages["e_core"]:
