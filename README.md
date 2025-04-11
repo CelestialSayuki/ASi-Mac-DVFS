@@ -8,14 +8,16 @@ Python script to profile full frequency, voltage on Apple Silicon.
   - **[Features](#features)**
   - **[Future Stuff](#future-stuff)**
   - **[Usage](#usage)**
-  - [Compatibility Notes](#compatibility-notes)
-  - [Contribution](#contribution)
-  - [Credits](#credits)
+  - **[Compatibility Notes](#compatibility-notes)**
+  - **[Contribution](#contribution)**
+  - **[Credits](#credits)**
 
 ___
 
 ## Project Deets
-This tool samples counter values from the `powermetrics` and `socpowerbud`, then returns formatted results for various metrics.
+This tool samples values from the `powermetrics` and `socpowerbud`, then returns formatted results for various metrics.  
+`Socpowerbud` is to difficult to get all the data at once, so this tool merged them together.  
+**If you dont want to run by yourself, move to [Discussions](https://github.com/CelestialSayuki/ASi-Mac-DVFS/discussions) to get the data.**
 
 ## Example Output
 **Note:** The following is a complete output of `python3 dvfs.py` running on a M1 Max 14" Macbook Pro.
