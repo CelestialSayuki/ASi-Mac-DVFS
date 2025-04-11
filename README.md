@@ -17,7 +17,7 @@ ___
 ## Project Deets
 This tool samples counter values from the `powermetrics` and `socpowerbud`, then returns formatted results for various metrics.
 
-### Example Output
+## Example Output
 **Note:** The following is a complete output of `python3 dvfs.py` running on a M1 Max 14" Macbook Pro.
 <details>
 
@@ -71,17 +71,17 @@ CPU 型号: Apple M1 Max (T6001)
 
 </details>
 
-# Features
+## Features
 
 The following metrics are available:
 - Active Frequencies and Voltage
 - DVFS Distribution 
 
-# Future Stuff
+## Future Stuff
 - Support for M4 Macs.
 - Sync with socpowerbud.
 
-# Usage
+## Usage
 **Note:** You need to `cd` to it's folder before running it. 
 
 ## Compatibility Notes
