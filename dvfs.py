@@ -23,13 +23,13 @@ def get_powermetrics_data():
 def parse_powermetrics_frequencies(output):
     frequencies = {"e_core": [], "p_core": [], "gpu": []}
 
-    e_cluster_match = re.search(r"E-Cluster HW active residency:.*?\(.*?\)", output, re.DOTALL)
+    e_cluster_match = re.search(r"E(?:-\w+|\d+)?-Cluster HW active residency:.*?\(.*?\)", output, re.DOTALL)
     if e_cluster_match:
         e_cluster_line = e_cluster_match.group(0)
         e_freq_matches = re.findall(r"(\d+) MHz:", e_cluster_line)
         frequencies["e_core"].extend(sorted(list(set(int(freq) for freq in e_freq_matches))))
 
-    p_cluster_matches = re.findall(r"P\d+-Cluster HW active residency:.*?\((.*?)\)", output, re.DOTALL)
+    p_cluster_matches = re.findall(r"P(?:-\w+|\d+)?-Cluster HW active residency:.*?\((.*?)\)", output, re.DOTALL)
     for p_cluster_freq_group in p_cluster_matches:
         p_freq_matches = re.findall(r"(\d+) MHz:", p_cluster_freq_group)
         frequencies["p_core"].extend([int(freq) for freq in p_freq_matches])
@@ -70,7 +70,7 @@ def parse_socpowerbud_voltages(output_buffer):
     return voltages
 
 if __name__ == "__main__":
-    print("自动电压检测工具V0.0.6 By Celestial紗雪")
+    print("自动电压检测工具V0.0.7 By Celestial紗雪")
     powermetrics_output = get_powermetrics_data()
     if powermetrics_output:
         frequencies = parse_powermetrics_frequencies(powermetrics_output)
