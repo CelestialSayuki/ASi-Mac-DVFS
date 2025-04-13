@@ -69,11 +69,8 @@ ANE:
 
 </details>
 
-## Future Stuff
-- Support for M4 Macs.
-
 ## Compatibility Notes
-Incompatiable with M4 Macs? I'm not sure.
+M2 can't read ANE voltage.
 
 ## Contribution
 If any bugs or issues are found, please let me know in the [issues](https://github.com/CelestialSayuki/ASi-Mac-DVFS/issues) section.
