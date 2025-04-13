@@ -70,7 +70,7 @@ ANE:
 </details>
 
 ## Compatibility Notes
-M2 can't read ANE voltage.
+Can't read ANE voltage on M2. [(#2)](https://github.com/CelestialSayuki/ASi-Mac-DVFS/issues/2)
 
 ## Contribution
 If any bugs or issues are found, please let me know in the [issues](https://github.com/CelestialSayuki/ASi-Mac-DVFS/issues) section.
