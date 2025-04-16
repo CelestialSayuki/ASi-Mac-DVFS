@@ -1,6 +1,6 @@
 # ASi-Mac-DVFS
 
-A sudoless utility to profile frequency and voltage on Apple Silicon.
+A sudoless app to profile frequency and voltage on Apple Silicon.
 
 - **Table of contents**
   - **[Project Deets](#project-deets)**
@@ -25,7 +25,7 @@ This tool gets inspiration from `socpowerbud`.
 
 ```
 
-电压检测工具V0.0.8 By Celestial紗雪
+电压检测工具V0.2.2 By Celestial紗雪
 CPU 型号: Apple M1 Max (T6001)
 
 --- 电压数据 ---
@@ -69,11 +69,17 @@ ANE:
 
 </details>
 
+## Future Stuff
+* Add a chart mode. (GUI)
+* Parse another IOService.txt (Parser)
+* Fetch results from discussions. (GUI)
+
 ## Compatibility Notes
-Can't read ANE voltage on M2. [(#2)](https://github.com/CelestialSayuki/ASi-Mac-DVFS/issues/2)
+Can't read ANE voltage on A Series and M Basic Series. [(#2)](https://github.com/CelestialSayuki/ASi-Mac-DVFS/issues/2)
 
 ## Contribution
-If any bugs or issues are found, please let me know in the [issues](https://github.com/CelestialSayuki/ASi-Mac-DVFS/issues) section.
+If any bugs or issues are found, please let me know in the [issues](https://github.com/CelestialSayuki/ASi-Mac-DVFS/issues) section.  
+*** You can't compile this tool right now because my parser is closed source temporarily. ***
 
 ## Credits
 - [dehydratedpotato](https://github.com/dehydratedpotato/) for [SocPowerBud](https://github.com/dehydratedpotato/socpowerbud)
