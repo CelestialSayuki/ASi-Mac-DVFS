@@ -152,12 +152,10 @@ struct ContentView: View {
         case .success(let urls):
             if let fileURL = urls.first {
                 let didStartAccessing = fileURL.startAccessingSecurityScopedResource()
-                print("Selected file URL: \(fileURL), Access granted: \(didStartAccessing)")
                 addedFiles.append(fileURL)
                 selectedFunction = .parsedFileContent(fileURL)
             }
         case .failure(let error):
-            print("File picker error: \(error.localizedDescription)")
         }
     }
 
@@ -204,6 +202,7 @@ struct WebView: NSViewRepresentable {
 
 struct VoltageChart: View {
     let dataPoints: [VoltageDataPoint]
+    @State private var selectedPoint: VoltageDataPoint?
 
     var body: some View {
         Chart {
@@ -224,17 +223,12 @@ struct VoltageChart: View {
         }
         .chartOverlay { proxy in
             GeometryReader { geo in
-                Rectangle()
-                    .fill(.clear)
-                    .gesture(
-                        DragGesture(minimumDistance: 0)
-                            .onChanged { value in
-                                let location = value.location
-                                if let (x, _) = proxy.value(at: location, as: (Double, Double).self) {
-                                    findClosestDataPoint(x: x)
-                                }
-                            }
-                    )
+                TooltipOverlay(
+                    proxy: proxy,
+                    selectedPoint: $selectedPoint,
+                    dataPoints: dataPoints,
+                    chartSize: geo.size
+                )
             }
         }
         .chartXAxis {
@@ -242,11 +236,13 @@ struct VoltageChart: View {
                 AxisValueLabel()
             }
         }
+        .chartXAxisLabel("Frequency (MHz)", position: .bottom, alignment: .center)
         .chartYAxis {
             AxisMarks {
                 AxisValueLabel()
             }
         }
+        .chartYAxisLabel("Voltage (mV)", position: .leading, alignment: .center)
         .chartLegend(position: .top, alignment: .leading)
         .frame(minHeight: 200)
         .padding()
@@ -260,13 +256,84 @@ struct VoltageChart: View {
         )
         .shadow(color: Color.black.opacity(0.1), radius: 5, x: 0, y: 2)
     }
+}
 
-    private func findClosestDataPoint(x: Double) {
-        if let closestPoint = dataPoints.min(by: {
-            abs($0.frequency - x) < abs($1.frequency - x)
-        }) {
-            print("Hovered over: Frequency \(closestPoint.frequency), Voltage \(closestPoint.voltage), Core \(closestPoint.coreType)")
+private struct TooltipOverlay: View {
+    let proxy: ChartProxy
+    @Binding var selectedPoint: VoltageDataPoint?
+    let dataPoints: [VoltageDataPoint]
+    let chartSize: CGSize
+
+    var body: some View {
+        ZStack {
+            Rectangle()
+                .fill(.clear)
+                .contentShape(Rectangle())
+                .gesture(
+                    DragGesture(minimumDistance: 0, coordinateSpace: .local)
+                        .onChanged { value in
+                            let location = value.location
+                            if let (x, y) = proxy.value(at: location, as: (Double, Double).self) {
+                                selectedPoint = findClosestDataPoint(x: x, y: y)
+                                if let point = selectedPoint {
+                                }
+                            }
+                        }
+                        .onEnded { _ in
+                            selectedPoint = nil
+                        }
+                )
+                #if os(macOS)
+                .onHover { isHovering in
+                    if !isHovering {
+                        selectedPoint = nil
+                    }
+                }
+                #endif
+            if let point = selectedPoint {
+                TooltipView(
+                    point: point,
+                    position: proxy.position(for: (x: point.frequency, y: point.voltage)) ?? .zero,
+                    chartSize: chartSize
+                )
+            }
         }
+    }
+
+    private func findClosestDataPoint(x: Double, y: Double) -> VoltageDataPoint? {
+        guard !dataPoints.isEmpty else {
+            return nil
+        }
+        let closest = dataPoints.min(by: {
+            let dist1 = pow($0.frequency - x, 2) + pow($0.voltage - y, 2)
+            let dist2 = pow($1.frequency - x, 2) + pow($1.voltage - y, 2)
+            return dist1 < dist2
+        })
+        return closest
+    }
+}
+
+private struct TooltipView: View {
+    let point: VoltageDataPoint
+    let position: CGPoint
+    let chartSize: CGSize
+
+    var body: some View {
+        Text("\(point.coreType)\n\(String(format: "%.0f MHz", point.frequency))\n\(String(format: "%.0f mV", point.voltage))")
+            .font(.caption)
+            .padding(8)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Color(.windowBackgroundColor).opacity(0.9))
+                    .shadow(radius: 2)
+            )
+            .foregroundColor(.primary)
+            .multilineTextAlignment(.center)
+            .position(
+                x: min(max(position.x + 20, 40), chartSize.width - 40),
+                y: min(max(position.y - 15, 20), chartSize.height - 20)
+            )
+            .fixedSize()
     }
 }
 
@@ -304,21 +371,6 @@ struct CombinedVoltageChartView: View {
 
             if !allDataPoints.isEmpty {
                 VoltageChart(dataPoints: visibleDataPoints)
-
-                HStack {
-                    Spacer()
-                    Text("Frequency (MHz)")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                HStack(alignment: .center) {
-                    Text("Voltage")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .rotationEffect(.degrees(-90))
-                        .offset(x: -20)
-                    Spacer()
-                }
                 HStack {
                     Toggle("E-core", isOn: $isEcoreVisible)
                     Toggle("P-core", isOn: $isPcoreVisible)
@@ -597,7 +649,6 @@ struct ParsedFileDetailView: View {
             if let range = Range(match.range(at: 1), in: fileContent) {
                 chipModel = String(fileContent[range])
                 cpuModel = chipModel ?? ""
-                print("找到芯片型号: \(chipModel ?? "未知")")
             }
         }
 
