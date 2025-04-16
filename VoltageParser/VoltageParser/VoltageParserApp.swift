@@ -115,6 +115,7 @@ struct ContentView: View {
                     #endif
                 case .parsedFileContent(let url):
                     ParsedFileDetailView(fileURL: url)
+                        .id(url) // 使用 fileURL 作为标识符，确保唯一性
                 case nil:
                     Text("detail.placeholder.selectFunction")
                         .foregroundColor(.secondary)
@@ -159,7 +160,6 @@ struct ContentView: View {
         switch result {
         case .success(let urls):
             if let fileURL = urls.first {
-                let didStartAccessing = fileURL.startAccessingSecurityScopedResource()
                 addedFiles.append(fileURL)
                 selectedFunction = .parsedFileContent(fileURL)
             }
@@ -212,6 +212,14 @@ struct VoltageChart: View {
     let dataPoints: [VoltageDataPoint]
     @State private var selectedPoint: VoltageDataPoint?
 
+    // Define a color map for core types
+    private let coreTypeColors: [String: Color] = [
+        "E-core": .blue,
+        "P-core": .red,
+        "GPU": .green,
+        "ANE": .yellow
+    ]
+
     var body: some View {
         Chart {
             ForEach(dataPoints) { dataPoint in
@@ -221,6 +229,7 @@ struct VoltageChart: View {
                 )
                 .interpolationMethod(.catmullRom)
                 .foregroundStyle(by: .value("Core Type", dataPoint.coreType))
+
                 PointMark(
                     x: .value("Frequency", dataPoint.frequency),
                     y: .value("Voltage", dataPoint.voltage)
@@ -229,13 +238,20 @@ struct VoltageChart: View {
                 .symbolSize(8)
             }
         }
+        .chartForegroundStyleScale([
+            "E-core": coreTypeColors["E-core"]!,
+            "P-core": coreTypeColors["P-core"]!,
+            "GPU": coreTypeColors["GPU"]!,
+            "ANE": coreTypeColors["ANE"]!
+        ])
         .chartOverlay { proxy in
             GeometryReader { geo in
                 TooltipOverlay(
                     proxy: proxy,
                     selectedPoint: $selectedPoint,
                     dataPoints: dataPoints,
-                    chartSize: geo.size
+                    chartSize: geo.size,
+                    coreTypeColors: coreTypeColors // Pass the color map
                 )
             }
         }
@@ -271,6 +287,7 @@ private struct TooltipOverlay: View {
     @Binding var selectedPoint: VoltageDataPoint?
     let dataPoints: [VoltageDataPoint]
     let chartSize: CGSize
+    let coreTypeColors: [String: Color] // Receive the color map
 
     var body: some View {
         ZStack {
@@ -280,8 +297,7 @@ private struct TooltipOverlay: View {
                 .gesture(
                     DragGesture(minimumDistance: 0, coordinateSpace: .local)
                         .onChanged { value in
-                            let location = value.location
-                            if let (x, y) = proxy.value(at: location, as: (Double, Double).self) {
+                            if let (x, y) = proxy.value(at: value.location, as: (Double, Double).self) {
                                 selectedPoint = findClosestDataPoint(x: x, y: y)
                             }
                         }
@@ -300,10 +316,11 @@ private struct TooltipOverlay: View {
                 TooltipView(
                     point: point,
                     position: proxy.position(for: (x: point.frequency, y: point.voltage)) ?? .zero,
-                    chartSize: chartSize
+                    chartSize: chartSize,
+                    coreTypeColors: coreTypeColors // Pass the color map to TooltipView
                 )
-                .transition(.opacity) // Fade-in/fade-out transition
-                .animation(.easeInOut(duration: 0.2), value: selectedPoint) // Animation tied to selectedPoint
+                .transition(.opacity)
+                .animation(.easeInOut(duration: 0.3), value: selectedPoint)
             }
         }
     }
@@ -325,14 +342,7 @@ private struct TooltipView: View {
     let point: VoltageDataPoint
     let position: CGPoint
     let chartSize: CGSize
-
-    // Core type to color mapping, matching chart colors
-    private let coreTypeColors: [String: Color] = [
-        "E-core": .blue,
-        "P-core": .red,
-        "GPU": .green,
-        "ANE": .yellow
-    ]
+    let coreTypeColors: [String: Color] // Receive the color map
 
     var body: some View {
         HStack(spacing: 6) {
@@ -348,14 +358,13 @@ private struct TooltipView: View {
         }
         .padding(8)
         .background(
-            // Semi-transparent blur effect
             ZStack {
                 #if os(macOS)
                 VisualEffectView(material: .popover, blendingMode: .behindWindow)
-                Color(.windowBackgroundColor).opacity(0.6) // Semi-transparent background
+                Color(.windowBackgroundColor).opacity(0.6)
                 #else
                 VisualEffectView(effect: UIBlurEffect(style: .systemThinMaterial))
-                Color(.systemGroupedBackground).opacity(0.6) // Semi-transparent background
+                Color(.systemGroupedBackground).opacity(0.6)
                 #endif
             }
             .clipShape(RoundedRectangle(cornerRadius: 8))
@@ -431,6 +440,14 @@ struct CombinedVoltageChartView: View {
     @Binding var isGpuVisible: Bool
     @Binding var isAneVisible: Bool
 
+    // Define a color map for core types
+    private let coreTypeColors: [String: Color] = [
+        "E-core": .blue,
+        "P-core": .red,
+        "GPU": .green,
+        "ANE": .yellow
+    ]
+
     var visibleDataPoints: [VoltageDataPoint] {
         allDataPoints.filter(shouldShowDataPoint)
     }
@@ -460,9 +477,13 @@ struct CombinedVoltageChartView: View {
                 VoltageChart(dataPoints: visibleDataPoints)
                 HStack {
                     Toggle("E-core", isOn: $isEcoreVisible)
+                        .foregroundColor(isEcoreVisible ? coreTypeColors["E-core"] : .gray)
                     Toggle("P-core", isOn: $isPcoreVisible)
+                        .foregroundColor(isPcoreVisible ? coreTypeColors["P-core"] : .gray)
                     Toggle("GPU", isOn: $isGpuVisible)
+                        .foregroundColor(isGpuVisible ? coreTypeColors["GPU"] : .gray)
                     Toggle("ANE", isOn: $isAneVisible)
+                        .foregroundColor(isAneVisible ? coreTypeColors["ANE"] : .gray)
                 }
                 .padding(.horizontal)
             } else {
@@ -638,183 +659,6 @@ struct CurrentMachineParserView: View {
 
         self.cpuModel = cpu
         self.allVoltageDataPoints = allPoints
-    }
-}
-
-struct ParsedFileDetailView: View {
-    let fileURL: URL
-    @State private var chipModel: String?
-    @State private var errorMessage: String?
-    @State private var allVoltageDataPoints: [VoltageDataPoint] = []
-    @State private var cpuModel: String = ""
-    @State private var isEcoreVisible: Bool = true
-    @State private var isPcoreVisible: Bool = true
-    @State private var isGpuVisible: Bool = true
-    @State private var isAneVisible: Bool = true
-
-    private let topPadding: CGFloat = 20
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .center) {
-                if let error = errorMessage {
-                    Text("Error: \(error)")
-                        .foregroundColor(.red)
-                        .padding()
-                } else if !cpuModel.isEmpty || !allVoltageDataPoints.isEmpty {
-                    VStack {
-                        Text(fileURL.lastPathComponent)
-                            .font(.headline)
-                            .padding(.bottom, 5)
-
-                        if !cpuModel.isEmpty {
-                            Text("CPU 型号: \(cpuModel)")
-                                .font(.subheadline)
-                                .padding(.bottom, 10)
-                        }
-
-                        CombinedVoltageChartView(
-                            allDataPoints: allVoltageDataPoints,
-                            isEcoreVisible: $isEcoreVisible,
-                            isPcoreVisible: $isPcoreVisible,
-                            isGpuVisible: $isGpuVisible,
-                            isAneVisible: $isAneVisible
-                        )
-                        .padding(.horizontal, 20)
-
-                        if allVoltageDataPoints.isEmpty && !cpuModel.isEmpty {
-                            Text("未找到电压数据。")
-                                .foregroundColor(.secondary)
-                                .padding()
-                        } else if cpuModel.isEmpty && !allVoltageDataPoints.isEmpty {
-                            Text("未找到芯片型号信息。")
-                                .foregroundColor(.secondary)
-                                .padding()
-                        } else if cpuModel.isEmpty && allVoltageDataPoints.isEmpty {
-                            Text("未找到芯片型号信息和电压数据。")
-                                .foregroundColor(.secondary)
-                                .padding()
-                        }
-                    }
-                } else if chipModel == nil && errorMessage == nil {
-                    Text("未找到芯片型号信息。")
-                        .foregroundColor(.secondary)
-                        .padding()
-                } else {
-                    Text("未找到电压数据。")
-                        .foregroundColor(.secondary)
-                        .padding()
-                }
-            }
-            .padding(.top, topPadding)
-        }
-        .navigationTitle(fileURL.lastPathComponent)
-        .onAppear {
-            parseFileContent(from: fileURL)
-        }
-    }
-
-    private func parseFileContent(from fileURL: URL) {
-        let didStartAccessing = fileURL.startAccessingSecurityScopedResource()
-        defer {
-            if didStartAccessing {
-                fileURL.stopAccessingSecurityScopedResource()
-            }
-        }
-
-        do {
-            let fileContent = try String(contentsOf: fileURL, encoding: .utf8)
-            parse(fileContent: fileContent)
-        } catch {
-            errorMessage = "读取文件失败: \(error.localizedDescription)"
-        }
-    }
-
-    private func parse(fileContent: String) {
-        let ioClassRegex = try! NSRegularExpression(pattern: #""IOClass" = "Apple([a-zA-Z0-9]+)PMGR""#)
-        if let match = ioClassRegex.firstMatch(in: fileContent, range: NSRange(fileContent.startIndex..., in: fileContent)) {
-            if let range = Range(match.range(at: 1), in: fileContent) {
-                chipModel = String(fileContent[range])
-                cpuModel = chipModel ?? ""
-            }
-        }
-
-        let voltageStatesRegex = try! NSRegularExpression(pattern: #""voltage-states(1-sram|5-sram|8|9)\" = <([0-9a-fA-F]+)>"#)
-        let matches = voltageStatesRegex.matches(in: fileContent, range: NSRange(fileContent.startIndex..., in: fileContent))
-
-        var allPoints: [VoltageDataPoint] = []
-
-        for match in matches {
-            if match.numberOfRanges == 3 {
-                if let keyRange = Range(match.range(at: 1), in: fileContent) {
-                    let key = String(fileContent[keyRange])
-                    if let hexDataRange = Range(match.range(at: 2), in: fileContent) {
-                        let hexString = String(fileContent[hexDataRange])
-                        if let parsedRows = parseHexString(key: key, hexString: hexString, chipModel: chipModel) {
-                            let coreType = getCoreType(from: key)
-                            allPoints.append(contentsOf: parsedRows.map {
-                                VoltageDataPoint(coreType: coreType, frequency: $0.frequency, voltage: $0.voltage)
-                            })
-                        }
-                    }
-                }
-            }
-        }
-
-        self.allVoltageDataPoints = allPoints
-    }
-
-    func getCoreType(from key: String) -> String {
-        if key == "1-sram" { return "E-core" }
-        if key == "5-sram" { return "P-core" }
-        if key == "8" { return "ANE" }
-        if key == "9" { return "GPU" }
-        return "Unknown"
-    }
-
-    func parseHexString(key: String, hexString: String, chipModel: String?) -> [VoltageDataPoint]? {
-        guard let data = Data(hexString: hexString) else { return nil }
-        var voltagePoints: [VoltageDataPoint] = []
-        let bytes = [UInt8](data)
-        let entrySize = 8
-
-        for i in stride(from: 0, to: bytes.count, by: entrySize) {
-            if i + 8 <= bytes.count {
-                let freqBytes = Data(bytes[i..<i+4])
-                let voltBytes = Data(bytes[i+4..<i+8])
-
-                let frequencyRaw = freqBytes.withUnsafeBytes { $0.load(as: UInt32.self) }
-                let voltageRaw = voltBytes.withUnsafeBytes { $0.load(as: UInt32.self) }
-
-                let frequency = frequencyRaw
-                let voltage = voltageRaw
-
-                let isLegacy = chipModel?.contains("M1") == true || chipModel?.contains("M2") == true || chipModel?.contains("M3") == true
-                let freqValue = Double(frequency) * (isLegacy ? 1e-6 : 1e-3)
-                let voltageValue = voltage == 0xFFFFFFFF ? 0 : Double(UInt(voltage))
-
-                if freqValue > 0 {
-                    voltagePoints.append(VoltageDataPoint(coreType: "Unknown", frequency: freqValue, voltage: voltageValue))
-                }
-            }
-        }
-        return voltagePoints
-    }
-}
-
-extension Data {
-    init?(hexString: String) {
-        let length = hexString.count / 2
-        var data = Data(capacity: length)
-        for i in 0..<length {
-            let startIndex = hexString.index(hexString.startIndex, offsetBy: i * 2)
-            let endIndex = hexString.index(startIndex, offsetBy: 2)
-            guard let byte = UInt8(hexString[startIndex..<endIndex], radix: 16) else {
-                return nil
-            }
-            data.append(byte)
-        }
-        self = data
     }
 }
 

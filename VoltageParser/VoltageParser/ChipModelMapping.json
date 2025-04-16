@@ -1,0 +1,162 @@
+[
+  {
+    "chipModel": "T8103",
+    "cpuModel": "Apple M1",
+    "isLegacy": true
+  },
+  {
+    "chipModel": "T6000",
+    "cpuModel": "Apple M1 Pro",
+    "isLegacy": true
+  },
+  {
+    "chipModel": "T6001",
+    "cpuModel": "Apple M1 Max",
+    "isLegacy": true
+  },
+  {
+    "chipModel": "T6002",
+    "cpuModel": "Apple M1 Ultra",
+    "isLegacy": true
+  },
+  {
+    "chipModel": "T8112",
+    "cpuModel": "Apple M2",
+    "isLegacy": true
+  },
+  {
+    "chipModel": "T6020",
+    "cpuModel": "Apple M2 Pro",
+    "isLegacy": true
+  },
+  {
+    "chipModel": "T6021",
+    "cpuModel": "Apple M2 Max",
+    "isLegacy": true
+  },
+  {
+    "chipModel": "T6022",
+    "cpuModel": "Apple M2 Ultra",
+    "isLegacy": true
+  },
+  {
+    "chipModel": "T8122",
+    "cpuModel": "Apple M3",
+    "isLegacy": true
+  },
+  {
+    "chipModel": "T6030",
+    "cpuModel": "Apple M3 Pro",
+    "isLegacy": true
+  },
+  {
+    "chipModel": "T6031",
+    "cpuModel": "Apple M3 Max",
+    "isLegacy": true
+  },
+  {
+    "chipModel": "T6034",
+    "cpuModel": "Apple M3 Max",
+    "isLegacy": true
+  },
+  {
+    "chipModel": "T6032",
+    "cpuModel": "Apple M3 Ultra",
+    "isLegacy": true
+  },
+  {
+    "chipModel": "T8132",
+    "cpuModel": "Apple M4",
+    "isLegacy": false
+  },
+  {
+    "chipModel": "T6040",
+    "cpuModel": "Apple M4 Pro",
+    "isLegacy": false
+  },
+  {
+    "chipModel": "T6041",
+    "cpuModel": "Apple M4 Max",
+    "isLegacy": false
+  },
+  {
+    "chipModel": "T8140",
+    "cpuModel": "Apple A18/A18 Pro",
+    "isLegacy": true
+  },
+  {
+    "chipModel": "T8130",
+    "cpuModel": "Apple A17 Pro",
+    "isLegacy": true
+  },
+  {
+    "chipModel": "T8120",
+    "cpuModel": "Apple A16 Bionic",
+    "isLegacy": true
+  },
+  {
+    "chipModel": "T8110",
+    "cpuModel": "Apple A15 Bionic",
+    "isLegacy": true
+  },
+  {
+    "chipModel": "T8101",
+    "cpuModel": "Apple A14 Bionic",
+    "isLegacy": true
+  },
+  {
+    "chipModel": "T8030",
+    "cpuModel": "Apple A13 Bionic",
+    "isLegacy": true
+  },
+  {
+    "chipModel": "T8027",
+    "cpuModel": "Apple A12Z/A12X Bionic",
+    "isLegacy": true
+  },
+  {
+    "chipModel": "T8020",
+    "cpuModel": "Apple A12 Bionic",
+    "isLegacy": true
+  },
+  {
+    "chipModel": "T8015",
+    "cpuModel": "Apple A11 Bionic",
+    "isLegacy": true
+  },
+  {
+    "chipModel": "T8011",
+    "cpuModel": "Apple A10X Fusion",
+    "isLegacy": true
+  },
+  {
+    "chipModel": "T8010",
+    "cpuModel": "Apple A10 Fusion",
+    "isLegacy": true
+  },
+  {
+    "chipModel": "S8001",
+    "cpuModel": "Apple A9X",
+    "isLegacy": true
+  },
+  {
+    "chipModel": "S8000",
+    "cpuModel": "Apple A9",
+    "isLegacy": true
+  },
+  {
+    "chipModel": "S8003",
+    "cpuModel": "Apple A9",
+    "isLegacy": true
+  },
+  {
+    "chipModel": "T7001",
+    "cpuModel": "Apple A8X",
+    "isLegacy": true
+  },
+  {
+    "chipModel": "T7000",
+    "cpuModel": "Apple A8",
+    "isLegacy": true
+  }
+]
