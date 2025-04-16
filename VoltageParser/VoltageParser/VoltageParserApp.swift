@@ -1,6 +1,7 @@
 import SwiftUI
 import WebKit
 import UniformTypeIdentifiers
+import Charts
 
 #if os(macOS)
 import AppKit
@@ -18,96 +19,11 @@ enum Function: Hashable {
     case parsedFileContent(URL)
 }
 
-struct VoltageDataRow: Identifiable {
+struct VoltageDataPoint: Identifiable {
     let id = UUID()
-    let frequency: String
-    let voltage: String
-}
-
-struct VoltageDataView: View {
-    let cpuModel: String
-    let eCoreData: [VoltageDataRow]
-    let pCoreData: [VoltageDataRow]
-    let gpuData: [VoltageDataRow]
-    let aneData: [VoltageDataRow]
-
-    private let gridColumns = [GridItem(.flexible()), GridItem(.flexible())]
-    private let minListHeight: CGFloat = 100
-    private let horizontalPadding: CGFloat = 20
-
-    var body: some View {
-        VStack(alignment: .center) {
-            Text("parser.toolTitle")
-                .font(.headline)
-                .padding(.bottom, 5)
-
-            if !cpuModel.isEmpty {
-                Text("CPU 型号: \(cpuModel)")
-                    .font(.subheadline)
-                    .padding(.bottom, 10)
-            }
-
-            LazyVGrid(columns: gridColumns) {
-                if !eCoreData.isEmpty {
-                    voltageDataSection(title: " E-core", data: eCoreData)
-                }
-                if !pCoreData.isEmpty {
-                    voltageDataSection(title: " P-core", data: pCoreData)
-                }
-                if !gpuData.isEmpty {
-                    voltageDataSection(title: " GPU", data: gpuData)
-                }
-                if !aneData.isEmpty {
-                    voltageDataSection(title: " ANE", data: aneData)
-                }
-            }
-            .padding(.horizontal, horizontalPadding)
-
-            if eCoreData.isEmpty && pCoreData.isEmpty && gpuData.isEmpty && aneData.isEmpty && !cpuModel.isEmpty {
-                Text("未找到电压数据。")
-                    .foregroundColor(.secondary)
-                    .padding()
-            } else if cpuModel.isEmpty {
-                Text("未找到芯片型号信息。")
-                    .foregroundColor(.secondary)
-                    .padding()
-            }
-        }
-    }
-
-    private func voltageDataSection(title: String, data: [VoltageDataRow]) -> some View {
-        VStack(alignment: .leading) {
-            Text(title)
-                .font(.title3)
-                .padding(.bottom, 5)
-            voltageDataListForGrid(data: data)
-                .frame(minHeight: minListHeight)
-        }
-        .frame(maxWidth: .infinity)
-    }
-
-    private func voltageDataListForGrid(data: [VoltageDataRow]) -> some View {
-        List {
-            ForEach(data) { row in
-                HStack {
-                    Text(row.frequency)
-                        .frame(alignment: .leading)
-                    Spacer()
-                    Text(row.voltage)
-                        .frame(alignment: .trailing)
-                }
-                .listRowInsets(EdgeInsets())
-            }
-        }
-        .listStyle(PlainListStyle())
-        .background(Color(.windowBackgroundColor))
-        .cornerRadius(12)
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(Color.gray, lineWidth: 0.5)
-        )
-        .shadow(color: Color.black.opacity(0.1), radius: 5, x: 0, y: 2)
-    }
+    let coreType: String
+    let frequency: Double
+    let voltage: Double
 }
 
 struct ContentView: View {
@@ -145,45 +61,41 @@ struct ContentView: View {
                                 Text(fileURL.lastPathComponent)
                             }
                         }
+                        #if os(macOS)
                         .onDelete(perform: removeFile)
+                        #endif
                     }
                 }
             }
             .navigationTitle("sidebar.title")
             .listStyle(.sidebar)
             .toolbar {
-                #if os(macOS)
                 ToolbarItem(placement: .automatic) {
-                    Button {
+                    Button(action: {
                         isPresentingFilePicker = true
-                    } label: {
+                    }) {
                         Image(systemName: "plus")
                     }
                     .help("toolbar.button.addFile")
                 }
-                #endif
             }
             .task {
                 webViewURL = URL(string: "https://github.com/CelestialSayuki/ASi-Mac-DVFS/discussions/1")
             }
-            #if os(macOS)
-            .background(
-                OpenFileTriggerView(
-                    isPresenting: $isPresentingFilePicker,
-                    selectedFileURL: $selectedFileURL,
-                    allowedFileTypes: ["txt", "ioreg"],
-                    pickerPrompt: "选择要加载的文本或 ioreg 文件",
-                    onFileSelected: handleSelectedFile
-                )
-                .frame(width: 0, height: 0)
-            )
-            #endif
-
+            .fileImporter(
+                isPresented: $isPresentingFilePicker,
+                allowedContentTypes: [.text, .init(filenameExtension: "ioreg")!],
+                allowsMultipleSelection: false
+            ) { result in
+                handleFilePickerResult(result)
+            }
         } detail: {
             VStack {
                 switch selectedFunction {
                 case .parseCurrentMachine:
+                    #if os(macOS)
                     CurrentMachineParserView(outputText: $outputText, isLoading: $isLoading)
+                    #endif
                 case .viewExistingDevices:
                     #if os(macOS)
                     if isWebViewActive, let url = webViewURL {
@@ -234,16 +146,29 @@ struct ContentView: View {
         }
     }
 
+    private func handleFilePickerResult(_ result: Result<[URL], Error>) {
+        isPresentingFilePicker = false
+        switch result {
+        case .success(let urls):
+            if let fileURL = urls.first {
+                let didStartAccessing = fileURL.startAccessingSecurityScopedResource()
+                print("Selected file URL: \(fileURL), Access granted: \(didStartAccessing)")
+                addedFiles.append(fileURL)
+                selectedFunction = .parsedFileContent(fileURL)
+            }
+        case .failure(let error):
+            print("File picker error: \(error.localizedDescription)")
+        }
+    }
+
     #if os(macOS)
     private func parseCurrentMachineData() {
         guard !isLoading else { return }
-
         isLoading = true
         outputText = NSLocalizedString("status.parsing", comment: "解析状态提示")
 
         DispatchQueue.global(qos: .userInitiated).async {
             let result = VoltageParser.getVoltageDataString()
-
             DispatchQueue.main.async {
                 outputText = result ?? NSLocalizedString("status.error.generic", comment: "通用错误信息")
                 isLoading = false
@@ -251,76 +176,18 @@ struct ContentView: View {
         }
     }
 
-    private func handleSelectedFile(fileURL: URL?) {
-        isPresentingFilePicker = false
-
-        if let fileURL = fileURL {
-            print("选定的文件 URL: \(fileURL)")
-            addedFiles.append(fileURL)
-            selectedFunction = .parsedFileContent(fileURL)
-        }
-    }
-
     private func removeFile(at offsets: IndexSet) {
         addedFiles.remove(atOffsets: offsets)
         if addedFiles.isEmpty {
-            selectedFunction = .parseCurrentMachine // Or some default state
+            selectedFunction = .parseCurrentMachine
         } else if let current = selectedFunction, case .parsedFileContent(let url) = current, !addedFiles.contains(url) {
-            selectedFunction = .parsedFileContent(addedFiles.first!) // Select the first remaining file
+            selectedFunction = .parsedFileContent(addedFiles.first!)
         }
     }
     #endif
 }
 
 #if os(macOS)
-struct OpenFileTriggerView: NSViewRepresentable {
-    @Binding var isPresenting: Bool
-    @Binding var selectedFileURL: URL?
-    let allowedFileTypes: [String]
-    let pickerPrompt: String
-    var onFileSelected: (URL?) -> Void
-
-    func makeNSView(context: Context) -> NSView {
-        return NSView()
-    }
-
-    func updateNSView(_ nsView: NSView, context: Context) {
-        if isPresenting {
-            DispatchQueue.main.async {
-                let panel = NSOpenPanel()
-                panel.allowsMultipleSelection = false
-                panel.canChooseDirectories = false
-                panel.canChooseFiles = true
-
-                panel.message = pickerPrompt
-
-                var allowedUTTypes: [UTType] = []
-                for type in allowedFileTypes {
-                    if let utType = UTType(filenameExtension: type) {
-                        allowedUTTypes.append(utType)
-                    }
-                }
-                if !allowedUTTypes.isEmpty {
-                    panel.allowedContentTypes = allowedUTTypes
-                }
-
-                panel.begin { response in
-                    DispatchQueue.main.async {
-                        if response == .OK, let url = panel.url {
-                            selectedFileURL = url
-                            onFileSelected(url)
-                        } else {
-                            selectedFileURL = nil
-                            onFileSelected(nil)
-                        }
-                        isPresenting = false
-                    }
-                }
-            }
-        }
-    }
-}
-
 struct WebView: NSViewRepresentable {
     let url: URL
 
@@ -333,18 +200,155 @@ struct WebView: NSViewRepresentable {
         nsView.load(request)
     }
 }
+#endif
+
+struct VoltageChart: View {
+    let dataPoints: [VoltageDataPoint]
+
+    var body: some View {
+        Chart {
+            ForEach(dataPoints) { dataPoint in
+                LineMark(
+                    x: .value("Frequency", dataPoint.frequency),
+                    y: .value("Voltage", dataPoint.voltage)
+                )
+                .interpolationMethod(.catmullRom)
+                .foregroundStyle(by: .value("Core Type", dataPoint.coreType))
+                PointMark(
+                    x: .value("Frequency", dataPoint.frequency),
+                    y: .value("Voltage", dataPoint.voltage)
+                )
+                .foregroundStyle(by: .value("Core Type", dataPoint.coreType))
+                .symbolSize(8)
+            }
+        }
+        .chartOverlay { proxy in
+            GeometryReader { geo in
+                Rectangle()
+                    .fill(.clear)
+                    .gesture(
+                        DragGesture(minimumDistance: 0)
+                            .onChanged { value in
+                                let location = value.location
+                                if let (x, _) = proxy.value(at: location, as: (Double, Double).self) {
+                                    findClosestDataPoint(x: x)
+                                }
+                            }
+                    )
+            }
+        }
+        .chartXAxis {
+            AxisMarks {
+                AxisValueLabel()
+            }
+        }
+        .chartYAxis {
+            AxisMarks {
+                AxisValueLabel()
+            }
+        }
+        .chartLegend(position: .top, alignment: .leading)
+        .frame(minHeight: 200)
+        .padding()
+        #if os(macOS)
+        .background(Color(.windowBackgroundColor))
+        #endif
+        .cornerRadius(12)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color.gray, lineWidth: 0.5)
+        )
+        .shadow(color: Color.black.opacity(0.1), radius: 5, x: 0, y: 2)
+    }
+
+    private func findClosestDataPoint(x: Double) {
+        if let closestPoint = dataPoints.min(by: {
+            abs($0.frequency - x) < abs($1.frequency - x)
+        }) {
+            print("Hovered over: Frequency \(closestPoint.frequency), Voltage \(closestPoint.voltage), Core \(closestPoint.coreType)")
+        }
+    }
+}
+
+struct CombinedVoltageChartView: View {
+    let allDataPoints: [VoltageDataPoint]
+    @Binding var isEcoreVisible: Bool
+    @Binding var isPcoreVisible: Bool
+    @Binding var isGpuVisible: Bool
+    @Binding var isAneVisible: Bool
+
+    var visibleDataPoints: [VoltageDataPoint] {
+        allDataPoints.filter(shouldShowDataPoint)
+    }
+
+    private func shouldShowDataPoint(_ dataPoint: VoltageDataPoint) -> Bool {
+        switch dataPoint.coreType {
+        case "E-core":
+            return isEcoreVisible
+        case "P-core":
+            return isPcoreVisible
+        case "GPU":
+            return isGpuVisible
+        case "ANE":
+            return isAneVisible
+        default:
+            return false
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading) {
+            Text("电压数据")
+                .font(.title3)
+                .padding(.bottom, 5)
+
+            if !allDataPoints.isEmpty {
+                VoltageChart(dataPoints: visibleDataPoints)
+
+                HStack {
+                    Spacer()
+                    Text("Frequency (MHz)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                HStack(alignment: .center) {
+                    Text("Voltage")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .rotationEffect(.degrees(-90))
+                        .offset(x: -20)
+                    Spacer()
+                }
+                HStack {
+                    Toggle("E-core", isOn: $isEcoreVisible)
+                    Toggle("P-core", isOn: $isPcoreVisible)
+                    Toggle("GPU", isOn: $isGpuVisible)
+                    Toggle("ANE", isOn: $isAneVisible)
+                }
+                .padding(.horizontal)
+            } else {
+                Text("No voltage data available.")
+                    .foregroundColor(.secondary)
+                    .padding()
+            }
+        }
+        .frame(maxWidth: .infinity)
+    }
+}
 
 struct CurrentMachineParserView: View {
     @Binding var outputText: String
     @Binding var isLoading: Bool
 
-    @State private var eCoreData: [VoltageDataRow] = []
-    @State private var pCoreData: [VoltageDataRow] = []
-    @State private var gpuData: [VoltageDataRow] = []
-    @State private var aneData: [VoltageDataRow] = []
+    @State private var allVoltageDataPoints: [VoltageDataPoint] = []
     @State private var cpuModel: String = ""
     @State private var isSaving: Bool = false
     @State private var isSaveSuccessful: Bool = false
+
+    @State private var isEcoreVisible: Bool = true
+    @State private var isPcoreVisible: Bool = true
+    @State private var isGpuVisible: Bool = true
+    @State private var isAneVisible: Bool = true
 
     private let topPadding: CGFloat = 40
     private let buttonPadding: CGFloat = 20
@@ -354,8 +358,41 @@ struct CurrentMachineParserView: View {
             if isLoading {
                 ProgressView("status.parsing")
                     .padding(.bottom)
-            } else if !cpuModel.isEmpty || !eCoreData.isEmpty || !pCoreData.isEmpty || !gpuData.isEmpty || !aneData.isEmpty {
-                VoltageDataView(cpuModel: cpuModel, eCoreData: eCoreData, pCoreData: pCoreData, gpuData: gpuData, aneData: aneData)
+            } else if !cpuModel.isEmpty || !allVoltageDataPoints.isEmpty {
+                VStack {
+                    Text("parser.toolTitle")
+                        .font(.headline)
+                        .padding(.bottom, 5)
+
+                    if !cpuModel.isEmpty {
+                        Text("CPU 型号: \(cpuModel)")
+                            .font(.subheadline)
+                            .padding(.bottom, 10)
+                    }
+
+                    CombinedVoltageChartView(
+                        allDataPoints: allVoltageDataPoints,
+                        isEcoreVisible: $isEcoreVisible,
+                        isPcoreVisible: $isPcoreVisible,
+                        isGpuVisible: $isGpuVisible,
+                        isAneVisible: $isAneVisible
+                    )
+                    .padding(.horizontal, 20)
+
+                    if allVoltageDataPoints.isEmpty && !cpuModel.isEmpty {
+                        Text("未找到电压数据。")
+                            .foregroundColor(.secondary)
+                            .padding()
+                    } else if cpuModel.isEmpty && !allVoltageDataPoints.isEmpty {
+                        Text("未找到芯片型号信息。")
+                            .foregroundColor(.secondary)
+                            .padding()
+                    } else if cpuModel.isEmpty && allVoltageDataPoints.isEmpty {
+                        Text("未找到芯片型号信息和电压数据。")
+                            .foregroundColor(.secondary)
+                            .padding()
+                    }
+                }
             } else if !outputText.isEmpty {
                 ScrollView {
                     Text(outputText)
@@ -379,8 +416,12 @@ struct CurrentMachineParserView: View {
                 Button {
                     isSaving = true
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) {
+                        #if os(macOS)
                         NSPasteboard.general.clearContents()
                         NSPasteboard.general.setString(outputText, forType: .string)
+                        #else
+                        UIPasteboard.general.string = outputText
+                        #endif
                         isSaving = false
                         isSaveSuccessful = true
                         DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
@@ -413,19 +454,13 @@ struct CurrentMachineParserView: View {
     func parseVoltageData(from text: String) {
         guard !text.isEmpty else {
             self.cpuModel = ""
-            self.eCoreData = []
-            self.pCoreData = []
-            self.gpuData = []
-            self.aneData = []
+            self.allVoltageDataPoints = []
             return
         }
 
         let lines = text.components(separatedBy: .newlines)
         var cpu = ""
-        var eCore: [VoltageDataRow] = []
-        var pCore: [VoltageDataRow] = []
-        var gpu: [VoltageDataRow] = []
-        var ane: [VoltageDataRow] = []
+        var allPoints: [VoltageDataPoint] = []
         var currentSection: String?
 
         for line in lines {
@@ -448,30 +483,22 @@ struct CurrentMachineParserView: View {
             } else if let section = currentSection {
                 let components = line.components(separatedBy: ":").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
                 if components.count == 2 {
-                    let frequency = components[0]
-                    let voltage = components[1]
-                    let row = VoltageDataRow(frequency: frequency, voltage: voltage)
-                    switch section {
-                    case "E-core":
-                        eCore.append(row)
-                    case "P-core":
-                        pCore.append(row)
-                    case "GPU":
-                        gpu.append(row)
-                    case "ANE":
-                        ane.append(row)
-                    default:
-                        break
+                    if let frequencyString = components.first, let voltageString = components.last {
+                        if let frequency = Double(frequencyString.replacingOccurrences(of: " MHz", with: "")),
+                           let voltage = Double(voltageString.replacingOccurrences(of: " mV", with: "").replacingOccurrences(of: "Unsupported", with: "0")) {
+                            let dataPoint = VoltageDataPoint(coreType: section, frequency: frequency, voltage: voltage)
+                            allPoints.append(dataPoint)
+                        } else if let frequency = Double(frequencyString.replacingOccurrences(of: " MHz", with: "")), voltageString == "Unsupported" {
+                            let dataPoint = VoltageDataPoint(coreType: section, frequency: frequency, voltage: 0)
+                            allPoints.append(dataPoint)
+                        }
                     }
                 }
             }
         }
 
         self.cpuModel = cpu
-        self.eCoreData = eCore
-        self.pCoreData = pCore
-        self.gpuData = gpu
-        self.aneData = ane
+        self.allVoltageDataPoints = allPoints
     }
 }
 
@@ -479,12 +506,12 @@ struct ParsedFileDetailView: View {
     let fileURL: URL
     @State private var chipModel: String?
     @State private var errorMessage: String?
-
+    @State private var allVoltageDataPoints: [VoltageDataPoint] = []
     @State private var cpuModel: String = ""
-    @State private var eCoreData: [VoltageDataRow] = []
-    @State private var pCoreData: [VoltageDataRow] = []
-    @State private var gpuData: [VoltageDataRow] = []
-    @State private var aneData: [VoltageDataRow] = []
+    @State private var isEcoreVisible: Bool = true
+    @State private var isPcoreVisible: Bool = true
+    @State private var isGpuVisible: Bool = true
+    @State private var isAneVisible: Bool = true
 
     private let topPadding: CGFloat = 20
 
@@ -495,8 +522,41 @@ struct ParsedFileDetailView: View {
                     Text("Error: \(error)")
                         .foregroundColor(.red)
                         .padding()
-                } else if !cpuModel.isEmpty || !eCoreData.isEmpty || !pCoreData.isEmpty || !gpuData.isEmpty || !aneData.isEmpty {
-                    VoltageDataView(cpuModel: cpuModel, eCoreData: eCoreData, pCoreData: pCoreData, gpuData: gpuData, aneData: aneData)
+                } else if !cpuModel.isEmpty || !allVoltageDataPoints.isEmpty {
+                    VStack {
+                        Text(fileURL.lastPathComponent)
+                            .font(.headline)
+                            .padding(.bottom, 5)
+
+                        if !cpuModel.isEmpty {
+                            Text("CPU 型号: \(cpuModel)")
+                                .font(.subheadline)
+                                .padding(.bottom, 10)
+                        }
+
+                        CombinedVoltageChartView(
+                            allDataPoints: allVoltageDataPoints,
+                            isEcoreVisible: $isEcoreVisible,
+                            isPcoreVisible: $isPcoreVisible,
+                            isGpuVisible: $isGpuVisible,
+                            isAneVisible: $isAneVisible
+                        )
+                        .padding(.horizontal, 20)
+
+                        if allVoltageDataPoints.isEmpty && !cpuModel.isEmpty {
+                            Text("未找到电压数据。")
+                                .foregroundColor(.secondary)
+                                .padding()
+                        } else if cpuModel.isEmpty && !allVoltageDataPoints.isEmpty {
+                            Text("未找到芯片型号信息。")
+                                .foregroundColor(.secondary)
+                                .padding()
+                        } else if cpuModel.isEmpty && allVoltageDataPoints.isEmpty {
+                            Text("未找到芯片型号信息和电压数据。")
+                                .foregroundColor(.secondary)
+                                .padding()
+                        }
+                    }
                 } else if chipModel == nil && errorMessage == nil {
                     Text("未找到芯片型号信息。")
                         .foregroundColor(.secondary)
@@ -516,6 +576,13 @@ struct ParsedFileDetailView: View {
     }
 
     private func parseFileContent(from fileURL: URL) {
+        let didStartAccessing = fileURL.startAccessingSecurityScopedResource()
+        defer {
+            if didStartAccessing {
+                fileURL.stopAccessingSecurityScopedResource()
+            }
+        }
+
         do {
             let fileContent = try String(contentsOf: fileURL, encoding: .utf8)
             parse(fileContent: fileContent)
@@ -525,7 +592,6 @@ struct ParsedFileDetailView: View {
     }
 
     private func parse(fileContent: String) {
-        // 1. 查找芯片型号
         let ioClassRegex = try! NSRegularExpression(pattern: #""IOClass" = "Apple([a-zA-Z0-9]+)PMGR""#)
         if let match = ioClassRegex.firstMatch(in: fileContent, range: NSRange(fileContent.startIndex..., in: fileContent)) {
             if let range = Range(match.range(at: 1), in: fileContent) {
@@ -535,11 +601,10 @@ struct ParsedFileDetailView: View {
             }
         }
 
-        // 2. 查找有效的电压状态行并解析数据
         let voltageStatesRegex = try! NSRegularExpression(pattern: #""voltage-states(1-sram|5-sram|8|9)\" = <([0-9a-fA-F]+)>"#)
         let matches = voltageStatesRegex.matches(in: fileContent, range: NSRange(fileContent.startIndex..., in: fileContent))
 
-        var parsedVoltageData: [String: [VoltageDataRow]] = [:]
+        var allPoints: [VoltageDataPoint] = []
 
         for match in matches {
             if match.numberOfRanges == 3 {
@@ -547,20 +612,18 @@ struct ParsedFileDetailView: View {
                     let key = String(fileContent[keyRange])
                     if let hexDataRange = Range(match.range(at: 2), in: fileContent) {
                         let hexString = String(fileContent[hexDataRange])
-
                         if let parsedRows = parseHexString(key: key, hexString: hexString, chipModel: chipModel) {
                             let coreType = getCoreType(from: key)
-                            parsedVoltageData[coreType, default: []].append(contentsOf: parsedRows)
+                            allPoints.append(contentsOf: parsedRows.map {
+                                VoltageDataPoint(coreType: coreType, frequency: $0.frequency, voltage: $0.voltage)
+                            })
                         }
                     }
                 }
             }
         }
 
-        eCoreData = parsedVoltageData["E-core"] ?? []
-        pCoreData = parsedVoltageData["P-core"] ?? []
-        gpuData = parsedVoltageData["GPU"] ?? []
-        aneData = parsedVoltageData["ANE"] ?? []
+        self.allVoltageDataPoints = allPoints
     }
 
     func getCoreType(from key: String) -> String {
@@ -571,9 +634,9 @@ struct ParsedFileDetailView: View {
         return "Unknown"
     }
 
-    func parseHexString(key: String, hexString: String, chipModel: String?) -> [VoltageDataRow]? {
+    func parseHexString(key: String, hexString: String, chipModel: String?) -> [VoltageDataPoint]? {
         guard let data = Data(hexString: hexString) else { return nil }
-        var voltageRows: [VoltageDataRow] = []
+        var voltagePoints: [VoltageDataPoint] = []
         let bytes = [UInt8](data)
         let entrySize = 8
 
@@ -590,14 +653,14 @@ struct ParsedFileDetailView: View {
 
                 let isLegacy = chipModel?.contains("M1") == true || chipModel?.contains("M2") == true || chipModel?.contains("M3") == true
                 let freqValue = Double(frequency) * (isLegacy ? 1e-6 : 1e-3)
-                let voltageValue = voltage == 0xFFFFFFFF ? 0 : UInt(voltage)
+                let voltageValue = voltage == 0xFFFFFFFF ? 0 : Double(UInt(voltage))
 
                 if freqValue > 0 {
-                    voltageRows.append(VoltageDataRow(frequency: String(format: "%.2f MHz", freqValue), voltage: voltageValue > 0 ? String(voltageValue) : "Unsupported"))
+                    voltagePoints.append(VoltageDataPoint(coreType: "Unknown", frequency: freqValue, voltage: voltageValue))
                 }
             }
         }
-        return voltageRows
+        return voltagePoints
     }
 }
 
@@ -616,7 +679,6 @@ extension Data {
         self = data
     }
 }
-#endif
 
 @main
 struct VoltageParserApp: App {

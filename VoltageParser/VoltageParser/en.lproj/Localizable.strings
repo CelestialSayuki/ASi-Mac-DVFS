@@ -33,7 +33,7 @@
 "button.refresh" = "Refresh";
 
 /* VoltageParser.m specific strings */
-"parser.toolTitle" = "Voltage Detection Tool V0.2.3 By CelestialSayuki";
+"parser.toolTitle" = "Voltage Detection Tool V0.2.4 By CelestialSayuki";
 "parser.cpuModelFormat" = "CPU Model: %@ (%@)"; // %@ are placeholders for SoC name and platform
 "parser.voltageDataHeader" = "--- Voltage Data ---";
 "parser.coreTypeECore" = "E-core:";
