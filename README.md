@@ -79,7 +79,6 @@ Can't read ANE voltage on A Series and M Basic Series. [(#2)](https://github.com
 
 ## Contribution
 If any bugs or issues are found, please let me know in the [issues](https://github.com/CelestialSayuki/ASi-Mac-DVFS/issues) section.  
-***You can't compile this tool right now because my parser is closed source temporarily.***
 
 ## Credits
 - [dehydratedpotato](https://github.com/dehydratedpotato/) for [SocPowerBud](https://github.com/dehydratedpotato/socpowerbud)
