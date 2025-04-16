@@ -10,6 +10,7 @@
 "sidebar.title" = "VoltageParser";
 "sidebar.function.parseCurrent" = "解析当前机器";
 "sidebar.function.viewDevices" = "查看现有的设备";
+"sidebar.header.addedFiles" = "添加的文件";
 "detail.title.existingDevices" = "现有设备";
 "status.loadingDevices" = "正在从GitHub获取...";
 "message.noDevicesFound" = "未找到任何设备，请检查互联网连接";

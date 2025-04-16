@@ -10,6 +10,7 @@
 "sidebar.title" = "VoltageParser";
 "sidebar.function.parseCurrent" = "Parse Current Machine";
 "sidebar.function.viewDevices" = "View existed data";
+"sidebar.header.addedFiles" = "Added Files";
 "detail.title.existingDevices" = "Existed data";
 "status.loadingDevices" = "Fetching from github...";
 "message.noDevicesFound" = "No devices found, please check your internet and try again.";
