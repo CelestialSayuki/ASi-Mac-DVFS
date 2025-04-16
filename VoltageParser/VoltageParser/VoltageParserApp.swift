@@ -19,11 +19,19 @@ enum Function: Hashable {
     case parsedFileContent(URL)
 }
 
-struct VoltageDataPoint: Identifiable {
+struct VoltageDataPoint: Identifiable, Equatable {
     let id = UUID()
     let coreType: String
     let frequency: Double
     let voltage: Double
+
+    // Implement Equatable conformance
+    static func == (lhs: VoltageDataPoint, rhs: VoltageDataPoint) -> Bool {
+        return lhs.id == rhs.id &&
+               lhs.coreType == rhs.coreType &&
+               lhs.frequency == rhs.frequency &&
+               lhs.voltage == rhs.voltage
+    }
 }
 
 struct ContentView: View {
@@ -155,7 +163,7 @@ struct ContentView: View {
                 addedFiles.append(fileURL)
                 selectedFunction = .parsedFileContent(fileURL)
             }
-        case .failure(let error):
+        case .failure(_): break
         }
     }
 
@@ -275,8 +283,6 @@ private struct TooltipOverlay: View {
                             let location = value.location
                             if let (x, y) = proxy.value(at: location, as: (Double, Double).self) {
                                 selectedPoint = findClosestDataPoint(x: x, y: y)
-                                if let point = selectedPoint {
-                                }
                             }
                         }
                         .onEnded { _ in
@@ -296,6 +302,8 @@ private struct TooltipOverlay: View {
                     position: proxy.position(for: (x: point.frequency, y: point.voltage)) ?? .zero,
                     chartSize: chartSize
                 )
+                .transition(.opacity) // Fade-in/fade-out transition
+                .animation(.easeInOut(duration: 0.2), value: selectedPoint) // Animation tied to selectedPoint
             }
         }
     }
@@ -318,24 +326,103 @@ private struct TooltipView: View {
     let position: CGPoint
     let chartSize: CGSize
 
+    // Core type to color mapping, matching chart colors
+    private let coreTypeColors: [String: Color] = [
+        "E-core": .blue,
+        "P-core": .red,
+        "GPU": .green,
+        "ANE": .yellow
+    ]
+
     var body: some View {
-        Text("\(point.coreType)\n\(String(format: "%.0f MHz", point.frequency))\n\(String(format: "%.0f mV", point.voltage))")
-            .font(.caption)
-            .padding(8)
-            .background(
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(Color(.windowBackgroundColor).opacity(0.9))
-                    .shadow(radius: 2)
-            )
-            .foregroundColor(.primary)
-            .multilineTextAlignment(.center)
-            .position(
-                x: min(max(position.x + 20, 40), chartSize.width - 40),
-                y: min(max(position.y - 15, 20), chartSize.height - 20)
-            )
-            .fixedSize()
+        HStack(spacing: 6) {
+            // Colored dot for core type
+            Circle()
+                .fill(coreTypeColors[point.coreType] ?? .gray)
+                .frame(width: 8, height: 8)
+            // Core type, frequency, and voltage
+            Text("\(point.coreType)\n\(String(format: "%.0f MHz", point.frequency))\n\(String(format: "%.0f mV", point.voltage))")
+                .font(.caption)
+                .foregroundColor(.primary)
+                .multilineTextAlignment(.leading)
+        }
+        .padding(8)
+        .background(
+            // Semi-transparent blur effect
+            ZStack {
+                #if os(macOS)
+                VisualEffectView(material: .popover, blendingMode: .behindWindow)
+                Color(.windowBackgroundColor).opacity(0.6) // Semi-transparent background
+                #else
+                VisualEffectView(effect: UIBlurEffect(style: .systemThinMaterial))
+                Color(.systemGroupedBackground).opacity(0.6) // Semi-transparent background
+                #endif
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .shadow(radius: 2)
+        )
+        .position(
+            x: calculateXPosition(),
+            y: calculateYPosition()
+        )
+        .fixedSize()
+    }
+
+    // Calculate X position to prevent tooltip from exceeding chart bounds
+    private func calculateXPosition() -> CGFloat {
+        let tooltipWidth: CGFloat = 120 // Estimated tooltip width
+        let offsetX: CGFloat = 10 // Horizontal offset
+        let x = position.x + offsetX // Default: right of data point
+        if x + tooltipWidth > chartSize.width {
+            return position.x - tooltipWidth - offsetX // If right exceeds, show on left
+        }
+        return x
+    }
+
+    // Calculate Y position to prevent tooltip from exceeding chart bounds
+    private func calculateYPosition() -> CGFloat {
+        let tooltipHeight: CGFloat = 60 // Estimated tooltip height
+        let offsetY: CGFloat = -10 // Vertical offset, slightly above data point
+        let y = position.y + offsetY // Default: above data point
+        if y - tooltipHeight < 0 {
+            return position.y + tooltipHeight + offsetY // If above exceeds, show below
+        }
+        return y
     }
 }
+
+// Cross-platform blur effect view
+#if os(macOS)
+struct VisualEffectView: NSViewRepresentable {
+    let material: NSVisualEffectView.Material
+    let blendingMode: NSVisualEffectView.BlendingMode
+
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let view = NSVisualEffectView()
+        view.material = material
+        view.blendingMode = blendingMode
+        view.state = .active
+        return view
+    }
+
+    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {
+        nsView.material = material
+        nsView.blendingMode = blendingMode
+    }
+}
+#else
+struct VisualEffectView: UIViewRepresentable {
+    let effect: UIBlurEffect
+
+    func makeUIView(context: Context) -> UIVisualEffectView {
+        return UIVisualEffectView(effect: effect)
+    }
+
+    func updateUIView(_ uiView: UIVisualEffectView, context: Context) {
+        uiView.effect = effect
+    }
+}
+#endif
 
 struct CombinedVoltageChartView: View {
     let allDataPoints: [VoltageDataPoint]
