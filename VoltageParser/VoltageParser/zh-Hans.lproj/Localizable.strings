@@ -9,7 +9,7 @@
 /* Sidebar */
 "sidebar.title" = "VoltageParser";
 "sidebar.function.parseCurrent" = "解析当前机器";
-"sidebar.function.viewDevices" = "查看现有的设备";
+"sidebar.function.viewDevices" = "联网查看数据";
 "sidebar.header.addedFiles" = "添加的文件";
 "detail.title.existingDevices" = "现有设备";
 "status.loadingDevices" = "正在从GitHub获取...";
@@ -33,7 +33,7 @@
 "button.refresh" = "刷新";
 
 /* VoltageParser.m specific strings */
-"parser.toolTitle" = "电压检测工具V0.2.5 By Celestial紗雪";
+"parser.toolTitle" = "电压检测工具V0.2.6 By Celestial紗雪";
 "parser.cpuModelFormat" = "CPU 型号: %@ (%@)"; // %@ 是 SoC 名称和平台的占位符
 "parser.voltageDataHeader" = "--- 电压数据 ---";
 "parser.coreTypeECore" = "E-core:"; // 你也可以翻译成 "能效核心:"

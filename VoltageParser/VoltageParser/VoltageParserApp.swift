@@ -1,5 +1,4 @@
 import SwiftUI
-import WebKit
 import UniformTypeIdentifiers
 import Charts
 
@@ -25,7 +24,6 @@ struct VoltageDataPoint: Identifiable, Equatable {
     let frequency: Double
     let voltage: Double
 
-    // Implement Equatable conformance
     static func == (lhs: VoltageDataPoint, rhs: VoltageDataPoint) -> Bool {
         return lhs.id == rhs.id &&
                lhs.coreType == rhs.coreType &&
@@ -44,101 +42,44 @@ struct ContentView: View {
     @State private var outputText: String = ""
     @State private var isLoading: Bool = false
     @State private var isPresentingFilePicker: Bool = false
-    @State private var isWebViewActive: Bool = false
-    @State private var webViewURL: URL? = nil
     @State private var selectedFileURL: URL? = nil
     @State private var addedFiles: [URL] = []
 
     var body: some View {
         NavigationSplitView {
-            List(selection: $selectedFunction) {
-                #if os(macOS)
-                NavigationLink(value: Function.parseCurrentMachine) {
-                    Text("sidebar.function.parseCurrent")
-                }
-                #endif
-
-                NavigationLink(value: Function.viewExistingDevices) {
-                    Text("sidebar.function.viewDevices")
-                }
-
-                if !addedFiles.isEmpty {
-                    Section(header: Text("sidebar.header.addedFiles")) {
-                        ForEach(addedFiles, id: \.self) { fileURL in
-                            NavigationLink(value: Function.parsedFileContent(fileURL)) {
-                                Text(fileURL.lastPathComponent)
-                            }
-                        }
-                        #if os(macOS)
-                        .onDelete(perform: removeFile)
-                        #endif
-                    }
-                }
-            }
-            .navigationTitle("sidebar.title")
-            .listStyle(.sidebar)
-            .toolbar {
-                ToolbarItem(placement: .automatic) {
-                    Button(action: {
-                        isPresentingFilePicker = true
-                    }) {
-                        Image(systemName: "plus")
-                    }
-                    .help("toolbar.button.addFile")
-                }
-            }
-            .task {
-                webViewURL = URL(string: "https://github.com/CelestialSayuki/ASi-Mac-DVFS/discussions/1")
-            }
-            .fileImporter(
-                isPresented: $isPresentingFilePicker,
-                allowedContentTypes: [.text, .init(filenameExtension: "ioreg")!],
-                allowsMultipleSelection: false
-            ) { result in
-                handleFilePickerResult(result)
-            }
+            SidebarView(
+                selectedFunction: $selectedFunction,
+                addedFiles: $addedFiles,
+                isPresentingFilePicker: $isPresentingFilePicker
+            )
+            #if os(macOS)
+            .frame(width: 200)
+            .navigationSplitViewColumnWidth(200)
+            #else
+            .frame(width: 300)
+            .navigationSplitViewColumnWidth(300)
+            #endif
         } detail: {
-            VStack {
-                switch selectedFunction {
-                case .parseCurrentMachine:
-                    #if os(macOS)
-                    CurrentMachineParserView(outputText: $outputText, isLoading: $isLoading)
-                    #endif
-                case .viewExistingDevices:
-                    #if os(macOS)
-                    if isWebViewActive, let url = webViewURL {
-                        WebView(url: url)
-                    } else {
-                        Text("detail.placeholder.viewDevices")
-                            .foregroundColor(.secondary)
-                    }
-                    #endif
-                case .parsedFileContent(let url):
-                    ParsedFileDetailView(fileURL: url)
-                        .id(url) // 使用 fileURL 作为标识符，确保唯一性
-                case nil:
-                    Text("detail.placeholder.selectFunction")
-                        .foregroundColor(.secondary)
-                }
-                Spacer()
-            }
-            .navigationTitle(detailViewTitle)
+            DetailView(
+                selectedFunction: selectedFunction,
+                outputText: $outputText,
+                isLoading: $isLoading
+            )
         }
-        .onChange(of: selectedFunction) { newFunction in
-            if newFunction == .viewExistingDevices {
-                webViewURL = URL(string: "https://github.com/CelestialSayuki/ASi-Mac-DVFS/discussions/1")
-                isWebViewActive = true
-            } else {
-                isWebViewActive = false
-                webViewURL = nil
-            }
-        }
+        .navigationSplitViewStyle(.balanced) // 确保平衡布局
         .onAppear {
             #if os(macOS)
             if selectedFunction == .parseCurrentMachine && outputText.isEmpty {
                 parseCurrentMachineData()
             }
             #endif
+        }
+        .fileImporter(
+            isPresented: $isPresentingFilePicker,
+            allowedContentTypes: [.text, .init(filenameExtension: "ioreg")!],
+            allowsMultipleSelection: false
+        ) { result in
+            handleFilePickerResult(result)
         }
     }
 
@@ -193,26 +134,173 @@ struct ContentView: View {
     #endif
 }
 
-#if os(macOS)
-struct WebView: NSViewRepresentable {
-    let url: URL
+// MARK: - Sidebar View
+struct SidebarView: View {
+    @Binding var selectedFunction: Function?
+    @Binding var addedFiles: [URL]
+    @Binding var isPresentingFilePicker: Bool
 
-    func makeNSView(context: Context) -> WKWebView {
-        return WKWebView()
+    var body: some View {
+        List(selection: $selectedFunction) {
+            #if os(macOS)
+            SidebarItemView(
+                value: .parseCurrentMachine,
+                icon: "laptopcomputer",
+                iconSize: 20,
+                title: LocalizedStringKey("sidebar.function.parseCurrent"),
+                isSelected: selectedFunction == .parseCurrentMachine
+            )
+            #endif
+
+            SidebarItemView(
+                value: .viewExistingDevices,
+                icon: "cpu",
+                iconSize: 22,
+                title: LocalizedStringKey("sidebar.function.viewDevices"),
+                isSelected: selectedFunction == .viewExistingDevices
+            )
+
+            if !addedFiles.isEmpty {
+                Section(header: Text("sidebar.header.addedFiles")) {
+                    ForEach(addedFiles, id: \.self) { fileURL in
+                        SidebarItemView(
+                            value: .parsedFileContent(fileURL),
+                            icon: "doc.text",
+                            iconSize: 22,
+                            title: LocalizedStringKey(fileURL.lastPathComponent),
+                            isSelected: selectedFunction == .parsedFileContent(fileURL)
+                        )
+                    }
+                    #if os(macOS)
+                    .onDelete(perform: removeFile)
+                    #endif
+                }
+            }
+        }
+        .navigationTitle("sidebar.title")
+        .listStyle(.sidebar)
+        .listRowInsets(EdgeInsets(top: 8, leading: 0, bottom: 8, trailing: 0))
+        #if os(macOS)
+        .padding(.horizontal, 12)
+        #endif
+        .accentColor(.clear)
+        .toolbar {
+            ToolbarItem(placement: .automatic) {
+                Button(action: {
+                    isPresentingFilePicker = true
+                }) {
+                    Image(systemName: "plus")
+                }
+                .help("toolbar.button.addFile")
+            }
+        }
     }
 
-    func updateNSView(_ nsView: WKWebView, context: Context) {
-        let request = URLRequest(url: url)
-        nsView.load(request)
+    #if os(macOS)
+    private func removeFile(at offsets: IndexSet) {
+        addedFiles.remove(atOffsets: offsets)
+        if addedFiles.isEmpty {
+            selectedFunction = .parseCurrentMachine
+        } else if let current = selectedFunction, case .parsedFileContent(let url) = current, !addedFiles.contains(url) {
+            selectedFunction = .parsedFileContent(addedFiles.first!)
+        }
+    }
+    #endif
+}
+
+// MARK: - Sidebar Item View
+struct SidebarItemView: View {
+    let value: Function
+    let icon: String
+    let iconSize: CGFloat
+    let title: LocalizedStringKey
+    let isSelected: Bool
+
+    var body: some View {
+        NavigationLink(value: value) {
+            HStack {
+                Image(systemName: icon)
+                    .font(.system(size: iconSize))
+                    .foregroundColor(.gray)
+                    .frame(width: 20, height: 20)
+                    .padding(.trailing, 8)
+                Text(title)
+                    .font(.system(size: 16))
+                    .foregroundColor(.black)
+            }
+            .padding(.vertical, 8)
+            .environment(\.colorScheme, .light)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .listRowBackground(
+            isSelected ? AnyView(selectedBackgroundView()) : AnyView(Color.clear)
+        )
+    }
+
+    @ViewBuilder
+    private func selectedBackgroundView() -> some View {
+        #if os(macOS)
+        VisualEffectView(material: .selection, blendingMode: .withinWindow)
+            .overlay(Color.gray.opacity(0.02))
+            .clipShape(RoundedRectangle(cornerRadius: 4))
+        #else
+        VisualEffectView(effect: UIBlurEffect(style: .systemThinMaterial))
+            .overlay(Color.gray.opacity(0.02))
+            .clipShape(RoundedRectangle(cornerRadius: 4))
+        #endif
     }
 }
-#endif
+
+// MARK: - Detail View
+struct DetailView: View {
+    let selectedFunction: Function?
+    @Binding var outputText: String
+    @Binding var isLoading: Bool
+
+    var body: some View {
+        VStack {
+            switch selectedFunction {
+            case .parseCurrentMachine:
+                #if os(macOS)
+                CurrentMachineParserView(outputText: $outputText, isLoading: $isLoading)
+                #endif
+            case .viewExistingDevices:
+                Text("detail.placeholder.viewDevices")
+                    .foregroundColor(.secondary)
+            case .parsedFileContent(let url):
+                ParsedFileDetailView(fileURL: url)
+                    .id(url)
+            case nil:
+                Text("detail.placeholder.selectFunction")
+                    .foregroundColor(.secondary)
+            }
+            Spacer()
+        }
+        #if os(macOS)
+        .background(Color.white)
+        #endif
+        .navigationTitle(detailViewTitle)
+    }
+
+    private var detailViewTitle: LocalizedStringKey {
+        switch selectedFunction {
+        case .parseCurrentMachine:
+            return "detail.title.currentInfo"
+        case .viewExistingDevices:
+            return "detail.title.existingDevices"
+        case .parsedFileContent(let url):
+            return LocalizedStringKey(url.lastPathComponent)
+        case .none:
+            return "detail.title.output"
+        }
+    }
+}
 
 struct VoltageChart: View {
     let dataPoints: [VoltageDataPoint]
     @State private var selectedPoint: VoltageDataPoint?
 
-    // Define a color map for core types
     private let coreTypeColors: [String: Color] = [
         "E-core": .blue,
         "P-core": .red,
@@ -251,7 +339,7 @@ struct VoltageChart: View {
                     selectedPoint: $selectedPoint,
                     dataPoints: dataPoints,
                     chartSize: geo.size,
-                    coreTypeColors: coreTypeColors // Pass the color map
+                    coreTypeColors: coreTypeColors
                 )
             }
         }
@@ -271,14 +359,19 @@ struct VoltageChart: View {
         .frame(minHeight: 200)
         .padding()
         #if os(macOS)
-        .background(Color(.windowBackgroundColor))
-        #endif
-        .cornerRadius(12)
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(Color.gray, lineWidth: 0.5)
+        .background(
+            Color(.windowBackgroundColor)
+                .opacity(0.8)
+                .clipShape(RoundedRectangle(cornerRadius: 16))
         )
-        .shadow(color: Color.black.opacity(0.1), radius: 5, x: 0, y: 2)
+        #else
+        .background(
+            Color(.systemGroupedBackground)
+                .opacity(0.8)
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+        )
+        #endif
+        .padding(.horizontal, 4)
     }
 }
 
@@ -287,7 +380,7 @@ private struct TooltipOverlay: View {
     @Binding var selectedPoint: VoltageDataPoint?
     let dataPoints: [VoltageDataPoint]
     let chartSize: CGSize
-    let coreTypeColors: [String: Color] // Receive the color map
+    let coreTypeColors: [String: Color]
 
     var body: some View {
         ZStack {
@@ -317,7 +410,7 @@ private struct TooltipOverlay: View {
                     point: point,
                     position: proxy.position(for: (x: point.frequency, y: point.voltage)) ?? .zero,
                     chartSize: chartSize,
-                    coreTypeColors: coreTypeColors // Pass the color map to TooltipView
+                    coreTypeColors: coreTypeColors
                 )
                 .transition(.opacity)
                 .animation(.easeInOut(duration: 0.3), value: selectedPoint)
@@ -342,15 +435,13 @@ private struct TooltipView: View {
     let point: VoltageDataPoint
     let position: CGPoint
     let chartSize: CGSize
-    let coreTypeColors: [String: Color] // Receive the color map
+    let coreTypeColors: [String: Color]
 
     var body: some View {
         HStack(spacing: 6) {
-            // Colored dot for core type
             Circle()
                 .fill(coreTypeColors[point.coreType] ?? .gray)
                 .frame(width: 8, height: 8)
-            // Core type, frequency, and voltage
             Text("\(point.coreType)\n\(String(format: "%.0f MHz", point.frequency))\n\(String(format: "%.0f mV", point.voltage))")
                 .font(.caption)
                 .foregroundColor(.primary)
@@ -377,30 +468,27 @@ private struct TooltipView: View {
         .fixedSize()
     }
 
-    // Calculate X position to prevent tooltip from exceeding chart bounds
     private func calculateXPosition() -> CGFloat {
-        let tooltipWidth: CGFloat = 120 // Estimated tooltip width
-        let offsetX: CGFloat = 10 // Horizontal offset
-        let x = position.x + offsetX // Default: right of data point
+        let tooltipWidth: CGFloat = 120
+        let offsetX: CGFloat = 10
+        let x = position.x + offsetX
         if x + tooltipWidth > chartSize.width {
-            return position.x - tooltipWidth - offsetX // If right exceeds, show on left
+            return position.x - tooltipWidth - offsetX
         }
         return x
     }
 
-    // Calculate Y position to prevent tooltip from exceeding chart bounds
     private func calculateYPosition() -> CGFloat {
-        let tooltipHeight: CGFloat = 60 // Estimated tooltip height
-        let offsetY: CGFloat = -10 // Vertical offset, slightly above data point
-        let y = position.y + offsetY // Default: above data point
+        let tooltipHeight: CGFloat = 60
+        let offsetY: CGFloat = -10
+        let y = position.y + offsetY
         if y - tooltipHeight < 0 {
-            return position.y + tooltipHeight + offsetY // If above exceeds, show below
+            return position.y + tooltipHeight + offsetY
         }
         return y
     }
 }
 
-// Cross-platform blur effect view
 #if os(macOS)
 struct VisualEffectView: NSViewRepresentable {
     let material: NSVisualEffectView.Material
@@ -440,7 +528,6 @@ struct CombinedVoltageChartView: View {
     @Binding var isGpuVisible: Bool
     @Binding var isAneVisible: Bool
 
-    // Define a color map for core types
     private let coreTypeColors: [String: Color] = [
         "E-core": .blue,
         "P-core": .red,
@@ -469,10 +556,6 @@ struct CombinedVoltageChartView: View {
 
     var body: some View {
         VStack(alignment: .leading) {
-            Text("电压数据")
-                .font(.title3)
-                .padding(.bottom, 5)
-
             if !allDataPoints.isEmpty {
                 VoltageChart(dataPoints: visibleDataPoints)
                 HStack {
@@ -575,7 +658,7 @@ struct CurrentMachineParserView: View {
             ToolbarItem {
                 Button {
                     isSaving = true
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
                         #if os(macOS)
                         NSPasteboard.general.clearContents()
                         NSPasteboard.general.setString(outputText, forType: .string)
@@ -584,7 +667,7 @@ struct CurrentMachineParserView: View {
                         #endif
                         isSaving = false
                         isSaveSuccessful = true
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
                             isSaveSuccessful = false
                         }
                     }
